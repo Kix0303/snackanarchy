@@ -1,0 +1,53 @@
+import pygame
+
+# Screen
+SCREEN_WIDTH = 1280
+SCREEN_HEIGHT = 720
+FPS = 60
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+RED = (200, 50, 50)
+BLUE = (50, 50, 200)
+GREEN = (50, 200, 50)
+GRAY = (100, 100, 100)
+ORANGE = (255, 165, 0)
+DARK_GRAY = (50, 50, 50)
+
+# Game
+GAME_DURATION_OPTIONS = [180, 300, 600]
+DEFAULT_DURATION = 300
+
+# Map
+TILE_SIZE = 64  # Large tiles for restaurants
+
+# Zone sizes (in tiles)
+RESTAURANT_WIDTH = 10
+RESTAURANT_HEIGHT = 8
+
+# Street uses smaller visual but same tile logic
+STREET_WIDTH = 14
+STREET_HEIGHT = 8
+
+# Player
+PLAYER_SPEED = 5
+PLAYER_1_COLOR = RED
+PLAYER_2_COLOR = BLUE
+
+# Split Screen
+BORDER_THICKNESS = 4
+BORDER_COLOR = BLACK
+
+# Tile Types
+TILE_FLOOR = 0
+TILE_WALL = 1
+TILE_DOOR = 2
+TILE_COUNTER = 3
+TILE_FRYER = 4
+TILE_SPIT = 5
+TILE_REGISTER = 6
+TILE_STREET = 7
+TILE_SIDEWALK = 8
+TILE_FACADE_TACOS = 9
+TILE_FACADE_KEBAB = 10
