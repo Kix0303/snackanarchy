@@ -137,26 +137,47 @@ class Player(pygame.sprite.Sprite):
             if not zone:
                 return
             
-            # Use center of sprite for tile collision
-            center_x = new_x + self.rect.width // 2
-            center_y = new_y + self.rect.height // 2
-            
-            tile_x = int(center_x // TILE_SIZE)
-            tile_y = int(center_y // TILE_SIZE)
-            
-            # Check if center tile is walkable
             can_move_x = True
             can_move_y = True
             
-            if self.vx != 0:
-                check_x = int((new_x + self.rect.width // 2 + (self.rect.width // 3 if self.vx > 0 else -self.rect.width // 3)) // TILE_SIZE)
-                if not zone.is_walkable(check_x, int((self.rect.y + self.rect.height // 2) // TILE_SIZE)):
-                    can_move_x = False
-                    
-            if self.vy != 0:
-                check_y = int((new_y + self.rect.height // 2 + (self.rect.height // 3 if self.vy > 0 else -self.rect.height // 3)) // TILE_SIZE)
-                if not zone.is_walkable(int((self.rect.x + self.rect.width // 2) // TILE_SIZE), check_y):
-                    can_move_y = False
+            # Utiliser les collisions en pixels si disponibles
+            if zone.use_pixel_collisions:
+                # Collision hitbox plus petite que le sprite pour plus de fluidité
+                collision_width = self.rect.width // 2
+                collision_height = self.rect.height // 3
+                collision_offset_x = (self.rect.width - collision_width) // 2
+                collision_offset_y = self.rect.height - collision_height
+                
+                # Test mouvement X
+                if self.vx != 0:
+                    test_x = new_x + collision_offset_x
+                    test_y = self.rect.y + collision_offset_y
+                    if not zone.is_walkable_pixel(test_x, test_y, collision_width, collision_height):
+                        can_move_x = False
+                
+                # Test mouvement Y
+                if self.vy != 0:
+                    test_x = self.rect.x + collision_offset_x
+                    test_y = new_y + collision_offset_y
+                    if not zone.is_walkable_pixel(test_x, test_y, collision_width, collision_height):
+                        can_move_y = False
+            else:
+                # Fallback: collision par tiles
+                center_x = new_x + self.rect.width // 2
+                center_y = new_y + self.rect.height // 2
+                
+                tile_x = int(center_x // TILE_SIZE)
+                tile_y = int(center_y // TILE_SIZE)
+                
+                if self.vx != 0:
+                    check_x = int((new_x + self.rect.width // 2 + (self.rect.width // 3 if self.vx > 0 else -self.rect.width // 3)) // TILE_SIZE)
+                    if not zone.is_walkable(check_x, int((self.rect.y + self.rect.height // 2) // TILE_SIZE)):
+                        can_move_x = False
+                        
+                if self.vy != 0:
+                    check_y = int((new_y + self.rect.height // 2 + (self.rect.height // 3 if self.vy > 0 else -self.rect.height // 3)) // TILE_SIZE)
+                    if not zone.is_walkable(int((self.rect.x + self.rect.width // 2) // TILE_SIZE), check_y):
+                        can_move_y = False
             
             if can_move_x:
                 self.rect.x = new_x
