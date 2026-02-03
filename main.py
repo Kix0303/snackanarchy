@@ -96,8 +96,9 @@ class Game:
         
     def toggle_inventory(self, player_idx):
         """Ouvre/ferme l'inventaire pour un joueur"""
+        was_visible = self.inventory_menu.is_visible_for(player_idx)
         self.inventory_menu.toggle(player_idx)
-        if self.inventory_menu.visible:
+        if not was_visible:
             play_sound('menu_select', 'ui')
         
     def run(self):
@@ -151,23 +152,34 @@ class Game:
                         self.running = False
                         
                 elif self.current_state == STATE_PLAYING:
-                    # Gérer l'inventaire en priorité s'il est ouvert
+                    # Gérer les inventaires - chaque joueur peut ouvrir/fermer le sien
+                    if event.type == pygame.KEYDOWN:
+                        # Touches d'inventaire (toujours actives)
+                        if event.key == self.key_bindings.get_key('player1', 'inventory'):
+                            self.toggle_inventory(0)
+                            continue
+                        elif event.key == self.key_bindings.get_key('player2', 'inventory'):
+                            self.toggle_inventory(1)
+                            continue
+                        # Pause
+                        elif event.key == pygame.K_ESCAPE:
+                            # Si un inventaire est ouvert, le fermer d'abord
+                            if self.inventory_menu.visible:
+                                self.inventory_menu.close()
+                            else:
+                                self.pause_game()
+                            continue
+                        elif event.key == pygame.K_SPACE and self.game_state and self.game_state.game_over:
+                            self.restart()
+                            continue
+                    
+                    # Gérer les inputs des inventaires ouverts
                     if self.inventory_menu.visible:
                         result = self.inventory_menu.handle_input(event, self.game_state)
                         if result == "close":
                             play_sound('menu_move', 'ui')
                         elif result == "navigate":
                             play_sound('menu_move', 'ui')
-                    elif event.type == pygame.KEYDOWN:
-                        if event.key == pygame.K_ESCAPE:
-                            self.pause_game()
-                        elif event.key == pygame.K_SPACE and self.game_state and self.game_state.game_over:
-                            self.restart()
-                        # Ouvrir l'inventaire avec les touches configurées
-                        elif event.key == self.key_bindings.get_key('player1', 'inventory'):
-                            self.toggle_inventory(0)
-                        elif event.key == self.key_bindings.get_key('player2', 'inventory'):
-                            self.toggle_inventory(1)
 
             # Update and draw based on current state
             if self.current_state == STATE_MENU:
@@ -181,14 +193,21 @@ class Game:
                 
             elif self.current_state == STATE_PLAYING:
                 if self.game_state:
-                    # Ne pas mettre à jour le jeu si l'inventaire est ouvert
-                    if not self.inventory_menu.visible:
-                        action = self.input_handler.handle_input(self.game_state.players, events)
-                        self.game_state.update(events, action)
+                    # Le jeu continue même si un inventaire est ouvert
+                    # mais les inputs du joueur avec inventaire ouvert sont ignorés
+                    action = self.input_handler.handle_input(
+                        self.game_state.players, 
+                        events,
+                        blocked_players=[
+                            i for i in range(2) 
+                            if self.inventory_menu.is_visible_for(i)
+                        ]
+                    )
+                    self.game_state.update(events, action)
                     
                     self.renderer.draw(self.game_state)
                     
-                    # Dessiner l'inventaire par-dessus si ouvert
+                    # Dessiner les inventaires par-dessus si ouverts
                     if self.inventory_menu.visible:
                         self.inventory_menu.draw(self.game_state)
                     
