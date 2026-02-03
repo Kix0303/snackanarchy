@@ -1,6 +1,73 @@
 import pygame
 import os
+import xml.etree.ElementTree as ET
 from config import *
+
+class TMXCollisionLoader:
+    """Parse les fichiers TMX Tiled pour extraire les zones de collision"""
+    
+    @staticmethod
+    def load_collisions(tmx_path, target_width, target_height):
+        """
+        Charge les rectangles de collision depuis un fichier TMX.
+        Les coordonnées sont mises à l'échelle vers target_width x target_height.
+        
+        Returns: Liste de pygame.Rect pour les zones NON walkables
+        """
+        collisions = []
+        
+        if not os.path.exists(tmx_path):
+            print(f"Warning: TMX file {tmx_path} not found")
+            return collisions
+            
+        try:
+            tree = ET.parse(tmx_path)
+            root = tree.getroot()
+            
+            # Récupérer les dimensions originales de la carte
+            map_width = int(root.get('width', 88))
+            map_height = int(root.get('height', 48))
+            tile_width = int(root.get('tilewidth', 32))
+            tile_height = int(root.get('tileheight', 32))
+            
+            original_width = map_width * tile_width
+            original_height = map_height * tile_height
+            
+            # Facteurs d'échelle
+            scale_x = target_width / original_width
+            scale_y = target_height / original_height
+            
+            # Chercher le groupe d'objets "collision"
+            for objectgroup in root.findall('.//objectgroup'):
+                if objectgroup.get('name', '').lower() == 'collision':
+                    for obj in objectgroup.findall('object'):
+                        x = float(obj.get('x', 0))
+                        y = float(obj.get('y', 0))
+                        width = float(obj.get('width', 0))
+                        height = float(obj.get('height', 0))
+                        
+                        # Ignorer les objets sans dimensions (points)
+                        if width <= 0 or height <= 0:
+                            continue
+                        
+                        # Mettre à l'échelle
+                        scaled_rect = pygame.Rect(
+                            int(x * scale_x),
+                            int(y * scale_y),
+                            int(width * scale_x),
+                            int(height * scale_y)
+                        )
+                        collisions.append(scaled_rect)
+                        
+            print(f"Loaded {len(collisions)} collision zones from {tmx_path}")
+            
+        except ET.ParseError as e:
+            print(f"Error parsing TMX file: {e}")
+        except Exception as e:
+            print(f"Error loading TMX collisions: {e}")
+            
+        return collisions
+
 
 class Assets:
     _instance = None
@@ -9,6 +76,7 @@ class Assets:
         self.images = {}
         self.masks = {}
         self.fonts = {}
+        self.collision_maps = {}  # Stocke les collisions TMX
         
     @classmethod
     def get(cls):
@@ -66,6 +134,14 @@ class Assets:
         load("interior_tacos", "floor_tacos.png", (resto_width, resto_height))
         load("interior_kebab", "floor_kebab.png", (resto_width, resto_height))
         
+        # Charger les collisions TMX pour tacos et kebab
+        self.collision_maps["tacos"] = TMXCollisionLoader.load_collisions(
+            os.path.join("assets", "floor_tacos.tmx"), resto_width, resto_height
+        )
+        self.collision_maps["kebab"] = TMXCollisionLoader.load_collisions(
+            os.path.join("assets", "floor_kebab.tmx"), resto_width, resto_height
+        )
+        
         # Street tiles
         load("sidewalk", "sidewalk.png", (TILE_SIZE, TILE_SIZE))
         load("road", "street.png", (TILE_SIZE, TILE_SIZE))
@@ -99,3 +175,7 @@ class Assets:
         
     def get_mask(self, name):
         return self.masks.get(name)
+    
+    def get_collisions(self, zone_name):
+        """Retourne les rectangles de collision pour une zone donnée"""
+        return self.collision_maps.get(zone_name, [])
