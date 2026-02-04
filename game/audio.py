@@ -4,7 +4,9 @@ Gère les sons et la musique du jeu
 """
 import pygame
 import os
+import sys
 from config import *
+from game.assets_loader import get_resource_path
 
 class AudioManager:
     _instance = None
@@ -264,11 +266,16 @@ class AudioManager:
         if self.muted:
             return
             
-        # Générer la musique si elle n'existe pas
-        music_path = os.path.join(os.path.dirname(__file__), '..', 'assets', 'music_ambient.wav')
+        # Chemin vers la musique (compatible PyInstaller)
+        music_path = get_resource_path(os.path.join('assets', 'music_ambient.wav'))
         
+        # Générer la musique si elle n'existe pas
         if not os.path.exists(music_path):
-            self._generate_ambient_music(music_path)
+            try:
+                self._generate_ambient_music(music_path)
+            except Exception as e:
+                print(f"Impossible de générer la musique: {e}")
+                return
             
         if os.path.exists(music_path):
             try:

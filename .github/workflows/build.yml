@@ -39,6 +39,12 @@ jobs:
         run: |
           Copy-Item -Path "assets" -Destination "dist/assets" -Recurse
           Copy-Item -Path "keybindings.json" -Destination "dist/keybindings.json"
+          
+          # Debug: afficher la structure
+          Write-Host "=== Contenu du dossier dist ==="
+          Get-ChildItem -Path "dist" -Recurse | Select-Object FullName | Select-Object -First 20
+          Write-Host "=== Fichier MP4 ==="
+          Get-ChildItem -Path "dist" -Recurse -Filter "*.mp4"
 
       - name: Install NSIS
         run: choco install nsis -y
@@ -162,6 +168,15 @@ jobs:
           # Copier assets dans Resources de l'app bundle
           cp -R assets "dist/SnackAnarchy.app/Contents/Resources/assets"
           cp keybindings.json "dist/SnackAnarchy.app/Contents/Resources/keybindings.json"
+          
+          # Copier aussi à côté de l'exécutable (fallback)
+          cp -R assets "dist/SnackAnarchy.app/Contents/MacOS/assets"
+          cp keybindings.json "dist/SnackAnarchy.app/Contents/MacOS/keybindings.json"
+          
+          # Debug: afficher la structure
+          echo "=== Structure de l'app bundle ==="
+          find "dist/SnackAnarchy.app" -type f -name "*.png" | head -5
+          find "dist/SnackAnarchy.app" -type f -name "*.mp4"
 
       - name: Sign app with ad-hoc signature
         run: |

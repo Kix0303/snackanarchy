@@ -1,7 +1,63 @@
 import pygame
 import os
+import sys
 import xml.etree.ElementTree as ET
 from config import *
+
+
+def get_base_path():
+    """Retourne le chemin de base pour les ressources."""
+    if getattr(sys, 'frozen', False):
+        # Exécutable PyInstaller
+        exe_dir = os.path.dirname(sys.executable)
+        
+        if sys.platform == 'darwin':
+            # macOS app bundle - essayer plusieurs emplacements
+            # Structure: SnackAnarchy.app/Contents/MacOS/SnackAnarchy
+            # Les assets peuvent être dans:
+            # 1. Contents/Resources/
+            # 2. Contents/MacOS/ (à côté de l'exe)
+            # 3. Contents/Frameworks/
+            
+            resources_path = os.path.realpath(os.path.join(exe_dir, '..', 'Resources'))
+            if os.path.exists(os.path.join(resources_path, 'assets')):
+                return resources_path
+            
+            # Fallback: à côté de l'exécutable
+            if os.path.exists(os.path.join(exe_dir, 'assets')):
+                return exe_dir
+            
+            # Dernier recours: Resources quand même
+            return resources_path
+        else:
+            # Windows/Linux : à côté de l'exécutable
+            return os.path.realpath(exe_dir)
+    else:
+        # Mode développement : racine du projet
+        return os.path.realpath(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def get_resource_path(relative_path):
+    """Retourne le chemin absolu vers une ressource, compatible PyInstaller."""
+    base = get_base_path()
+    full_path = os.path.join(base, relative_path)
+    
+    # Si le fichier n'existe pas, essayer d'autres emplacements en mode frozen
+    if not os.path.exists(full_path) and getattr(sys, 'frozen', False):
+        exe_dir = os.path.dirname(sys.executable)
+        
+        # Essayer à côté de l'exécutable
+        alt_path = os.path.join(exe_dir, relative_path)
+        if os.path.exists(alt_path):
+            return os.path.realpath(alt_path)
+        
+        # macOS: essayer dans Resources
+        if sys.platform == 'darwin':
+            resources_path = os.path.realpath(os.path.join(exe_dir, '..', 'Resources', relative_path))
+            if os.path.exists(resources_path):
+                return resources_path
+    
+    return os.path.realpath(full_path)
 
 class TMXCollisionLoader:
     """Parse les fichiers TMX Tiled pour extraire les zones de collision"""
@@ -85,8 +141,17 @@ class Assets:
         return cls._instance
         
     def load_images(self):
+        # Debug: afficher le chemin de base
+        base = get_base_path()
+        assets_dir = get_resource_path("assets")
+        print(f"[DEBUG] Base path: {base}")
+        print(f"[DEBUG] Assets dir: {assets_dir}")
+        print(f"[DEBUG] Assets dir existe: {os.path.exists(assets_dir)}")
+        if os.path.exists(assets_dir):
+            print(f"[DEBUG] Contenu assets: {os.listdir(assets_dir)[:5]}...")
+        
         def load(name, filename, size=None, create_mask=False):
-            path = os.path.join("assets", filename)
+            path = get_resource_path(os.path.join("assets", filename))
             if os.path.exists(path):
                 img = pygame.image.load(path).convert_alpha()
                 if size:
@@ -105,7 +170,7 @@ class Assets:
 
         def load_scaled(name, filename, target_height, create_mask=False):
             """Load image and scale to target height while keeping aspect ratio"""
-            path = os.path.join("assets", filename)
+            path = get_resource_path(os.path.join("assets", filename))
             if os.path.exists(path):
                 img = pygame.image.load(path).convert_alpha()
                 
@@ -136,10 +201,10 @@ class Assets:
         
         # Charger les collisions TMX pour tacos et kebab
         self.collision_maps["tacos"] = TMXCollisionLoader.load_collisions(
-            os.path.join("assets", "floor_tacos.tmx"), resto_width, resto_height
+            get_resource_path(os.path.join("assets", "floor_tacos.tmx")), resto_width, resto_height
         )
         self.collision_maps["kebab"] = TMXCollisionLoader.load_collisions(
-            os.path.join("assets", "floor_kebab.tmx"), resto_width, resto_height
+            get_resource_path(os.path.join("assets", "floor_kebab.tmx")), resto_width, resto_height
         )
         
         # Street tiles

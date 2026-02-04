@@ -4,8 +4,9 @@ import time
 import random
 import cv2
 import os
+import sys
 from config import *
-from game.assets_loader import Assets
+from game.assets_loader import Assets, get_resource_path
 
 
 class MenuRenderer:
@@ -71,11 +72,25 @@ class MenuRenderer:
     
     def _load_background_video(self):
         """Load background video for main menu"""
-        video_path = os.path.join(os.path.dirname(__file__), "..", "assets", "background-menu.mp4")
+        video_path = get_resource_path(os.path.join("assets", "background-menu.mp4"))
+        print(f"[DEBUG] Chemin vidéo: {video_path}")
+        print(f"[DEBUG] Fichier existe: {os.path.exists(video_path)}")
+        
         if os.path.exists(video_path):
-            self.video_capture = cv2.VideoCapture(video_path)
-            self.video_fps = self.video_capture.get(cv2.CAP_PROP_FPS)
-            self.last_frame_time = 0
+            try:
+                self.video_capture = cv2.VideoCapture(video_path)
+                if self.video_capture.isOpened():
+                    self.video_fps = self.video_capture.get(cv2.CAP_PROP_FPS)
+                    self.last_frame_time = 0
+                    print(f"[DEBUG] Vidéo chargée avec succès, FPS: {self.video_fps}")
+                else:
+                    print(f"[DEBUG] OpenCV n'a pas pu ouvrir la vidéo")
+                    self.video_capture = None
+            except Exception as e:
+                print(f"[DEBUG] Erreur chargement vidéo: {e}")
+                self.video_capture = None
+        else:
+            print(f"[DEBUG] Fichier vidéo non trouvé")
     
     def _update_video_frame(self):
         """Update and return the current video frame as a pygame surface"""

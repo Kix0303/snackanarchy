@@ -1,7 +1,14 @@
 import pygame
 import json
 import os
+import sys
 from game.audio import play_sound
+from game.assets_loader import get_resource_path, get_base_path
+
+
+def get_user_config_path(filename):
+    """Retourne le chemin vers un fichier de config utilisateur (modifiable)."""
+    return os.path.join(get_base_path(), filename)
 
 
 class KeyBindings:
@@ -75,22 +82,32 @@ class KeyBindings:
             'player1': dict(self.DEFAULT_BINDINGS['player1']),
             'player2': dict(self.DEFAULT_BINDINGS['player2']),
         }
-        self.config_path = os.path.join(os.path.dirname(__file__), '..', 'keybindings.json')
+        # Chemin utilisateur pour sauvegarde
+        self.config_path = get_user_config_path('keybindings.json')
+        # Chemin bundled pour lecture initiale (si user config n'existe pas)
+        self.bundled_config_path = get_resource_path('keybindings.json')
         self.load()
         
     def load(self):
         """Charge les touches depuis le fichier de config"""
-        try:
-            if os.path.exists(self.config_path):
-                with open(self.config_path, 'r') as f:
+        # Priorité: fichier utilisateur > fichier bundled
+        config_to_load = None
+        if os.path.exists(self.config_path):
+            config_to_load = self.config_path
+        elif os.path.exists(self.bundled_config_path):
+            config_to_load = self.bundled_config_path
+        
+        if config_to_load:
+            try:
+                with open(config_to_load, 'r') as f:
                     data = json.load(f)
                     for player in ['player1', 'player2']:
                         if player in data:
                             for action, key_code in data[player].items():
                                 if action in self.bindings[player]:
                                     self.bindings[player][action] = key_code
-        except Exception as e:
-            print(f"Erreur chargement keybindings: {e}")
+            except Exception as e:
+                print(f"Erreur chargement keybindings: {e}")
             
     def save(self):
         """Sauvegarde les touches dans le fichier de config"""
