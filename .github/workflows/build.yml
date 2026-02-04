@@ -32,9 +32,12 @@ jobs:
             --name SnackAnarchy `
             --onefile `
             --noconsole `
-            --noconfirm `
-            --add-data "assets;assets" `
-            --add-data "keybindings.json;."
+            --noconfirm
+
+      - name: Copy assets next to executable
+        run: |
+          Copy-Item -Path "assets" -Destination "dist/assets" -Recurse
+          Copy-Item -Path "keybindings.json" -Destination "dist/keybindings.json"
 
       - name: Install NSIS
         run: choco install nsis -y
@@ -58,6 +61,14 @@ jobs:
           Section "Install"
             SetOutPath "`$INSTDIR"
             File "dist\SnackAnarchy.exe"
+            File "dist\keybindings.json"
+            
+            ; Copier le dossier assets
+            SetOutPath "`$INSTDIR\assets"
+            File /r "dist\assets\*.*"
+            
+            ; Retour au dossier principal pour les raccourcis
+            SetOutPath "`$INSTDIR"
             
             ; Raccourci Bureau
             CreateShortCut "`$DESKTOP\SnackAnarchy.lnk" "`$INSTDIR\SnackAnarchy.exe"
@@ -76,13 +87,24 @@ jobs:
           SectionEnd
           
           Section "Uninstall"
+            ; Supprimer les fichiers
             Delete "`$INSTDIR\SnackAnarchy.exe"
+            Delete "`$INSTDIR\keybindings.json"
             Delete "`$INSTDIR\uninstall.exe"
+            
+            ; Supprimer le dossier assets
+            RMDir /r "`$INSTDIR\assets"
+            
+            ; Supprimer les raccourcis
             Delete "`$DESKTOP\SnackAnarchy.lnk"
             Delete "`$SMPROGRAMS\SnackAnarchy\SnackAnarchy.lnk"
             Delete "`$SMPROGRAMS\SnackAnarchy\Désinstaller.lnk"
             RMDir "`$SMPROGRAMS\SnackAnarchy"
+            
+            ; Supprimer le dossier d'installation
             RMDir "`$INSTDIR"
+            
+            ; Nettoyer le registre
             DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SnackAnarchy"
           SectionEnd
           "@ | Out-File -Encoding UTF8 installer.nsi
@@ -98,11 +120,15 @@ jobs:
           name: SnackAnarchy-Windows-Installer
           path: SnackAnarchy-Setup.exe
 
-      - name: Upload Windows executable
+      - name: Create Windows portable zip
+        run: |
+          Compress-Archive -Path "dist/*" -DestinationPath "SnackAnarchy-Windows-Portable.zip"
+
+      - name: Upload Windows portable
         uses: actions/upload-artifact@v4
         with:
           name: SnackAnarchy-Windows-Portable
-          path: dist/SnackAnarchy.exe
+          path: SnackAnarchy-Windows-Portable.zip
 
   build-macos:
     name: Build macOS DMG
@@ -127,9 +153,13 @@ jobs:
           pyinstaller main.py \
             --name SnackAnarchy \
             --windowed \
-            --noconfirm \
-            --add-data "assets:assets" \
-            --add-data "keybindings.json:."
+            --noconfirm
+
+      - name: Copy assets into app bundle
+        run: |
+          # Copier assets dans Resources de l'app bundle
+          cp -R assets "dist/SnackAnarchy.app/Contents/Resources/assets"
+          cp keybindings.json "dist/SnackAnarchy.app/Contents/Resources/keybindings.json"
 
       - name: Create macOS DMG
         run: |
@@ -143,12 +173,6 @@ jobs:
         with:
           name: SnackAnarchy-macOS-DMG
           path: dist/SnackAnarchy.dmg
-
-      - name: Upload macOS app
-        uses: actions/upload-artifact@v4
-        with:
-          name: SnackAnarchy-macOS-App
-          path: dist/SnackAnarchy.app
 
   build-linux:
     name: Build Linux executable
@@ -181,14 +205,17 @@ jobs:
           pyinstaller main.py \
             --name SnackAnarchy \
             --onefile \
-            --noconfirm \
-            --add-data "assets:assets" \
-            --add-data "keybindings.json:."
+            --noconfirm
+
+      - name: Copy assets next to executable
+        run: |
+          cp -R assets dist/assets
+          cp keybindings.json dist/keybindings.json
 
       - name: Create Linux archive
         run: |
           cd dist
-          tar -czvf ../SnackAnarchy-Linux.tar.gz SnackAnarchy
+          tar -czvf ../SnackAnarchy-Linux.tar.gz SnackAnarchy assets keybindings.json
           cd ..
 
       - name: Upload Linux archive
