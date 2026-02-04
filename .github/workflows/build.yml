@@ -40,7 +40,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
-
+      
+      # --- Construction de base avec PyInstaller (binaire) ---
       - name: Build executable with PyInstaller
         run: |
           pyinstaller main.py \
@@ -48,9 +49,76 @@ jobs:
             --onefile \
             --noconfirm
 
-      - name: Upload build artifact
+      # --- Installateur Windows (.exe NSIS) ---
+      - name: Install NSIS (Windows only)
+        if: matrix.os == 'windows-latest'
+        run: |
+          choco install nsis -y
+
+      - name: Create Windows installer script
+        if: matrix.os == 'windows-latest'
+        run: |
+          echo 'OutFile "SnackAnarchy-Setup.exe"' > installer.nsi
+          echo 'InstallDir "$PROGRAMFILES\\SnackAnarchy"' >> installer.nsi
+          echo 'Page directory' >> installer.nsi
+          echo 'Page instfiles' >> installer.nsi
+          echo 'Section "Install"' >> installer.nsi
+          echo '  SetOutPath "$INSTDIR"' >> installer.nsi
+          echo '  File "dist\\SnackAnarchy.exe"' >> installer.nsi
+          echo '  CreateShortCut "$DESKTOP\\SnackAnarchy.lnk" "$INSTDIR\\SnackAnarchy.exe"' >> installer.nsi
+          echo 'SectionEnd' >> installer.nsi
+
+      - name: Build Windows installer
+        if: matrix.os == 'windows-latest'
+        run: makensis installer.nsi
+
+      # --- Image disque macOS (.dmg) ---
+      - name: Build macOS app bundle
+        if: matrix.os == 'macos-latest'
+        run: |
+          # Reconstruire en mode fenêtre pour générer une app
+          pyinstaller main.py \
+            --name SnackAnarchy \
+            --windowed \
+            --noconfirm
+
+      - name: Create macOS DMG
+        if: matrix.os == 'macos-latest'
+        run: |
+          mkdir -p dist/dmg_src
+          cp -R "dist/SnackAnarchy.app" dist/dmg_src/
+          hdiutil create -volname "SnackAnarchy" -srcfolder dist/dmg_src -ov -format UDZO dist/SnackAnarchy.dmg
+
+      # --- Archivage Linux (tar.gz) ---
+      - name: Create Linux archive
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          tar -czf SnackAnarchy-linux.tar.gz -C dist SnackAnarchy
+
+      # --- Upload des artefacts ---
+      - name: Upload raw dist artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: snackanarchy-${{ matrix.os }}
+          name: snackanarchy-dist-${{ matrix.os }}
           path: dist/*
 
+      - name: Upload Windows installer
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: snackanarchy-windows-installer
+          path: SnackAnarchy-Setup.exe
+
+      - name: Upload macOS DMG
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: snackanarchy-macos-dmg
+          path: dist/SnackAnarchy.dmg
+
+      - name: Upload Linux archive
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: snackanarchy-linux-archive
+          path: SnackAnarchy-linux.tar.gz
