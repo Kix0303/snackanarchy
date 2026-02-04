@@ -8,14 +8,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    name: Build on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-
+  build-windows:
+    name: Build Windows installer
+    runs-on: windows-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -25,14 +20,154 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install system dependencies (Linux only)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build executable with PyInstaller
+        run: |
+          pyinstaller main.py `
+            --name SnackAnarchy `
+            --onefile `
+            --noconsole `
+            --noconfirm `
+            --add-data "assets;assets" `
+            --add-data "keybindings.json;."
+
+      - name: Install NSIS
+        run: choco install nsis -y
+
+      - name: Create NSIS installer script
+        shell: pwsh
+        run: |
+          @"
+          !include "MUI2.nsh"
+          
+          Name "SnackAnarchy"
+          OutFile "SnackAnarchy-Setup.exe"
+          InstallDir "`$PROGRAMFILES\SnackAnarchy"
+          RequestExecutionLevel admin
+          
+          !insertmacro MUI_PAGE_DIRECTORY
+          !insertmacro MUI_PAGE_INSTFILES
+          
+          !insertmacro MUI_LANGUAGE "French"
+          
+          Section "Install"
+            SetOutPath "`$INSTDIR"
+            File "dist\SnackAnarchy.exe"
+            
+            ; Raccourci Bureau
+            CreateShortCut "`$DESKTOP\SnackAnarchy.lnk" "`$INSTDIR\SnackAnarchy.exe"
+            
+            ; Raccourci Menu Démarrer
+            CreateDirectory "`$SMPROGRAMS\SnackAnarchy"
+            CreateShortCut "`$SMPROGRAMS\SnackAnarchy\SnackAnarchy.lnk" "`$INSTDIR\SnackAnarchy.exe"
+            CreateShortCut "`$SMPROGRAMS\SnackAnarchy\Désinstaller.lnk" "`$INSTDIR\uninstall.exe"
+            
+            ; Désinstalleur
+            WriteUninstaller "`$INSTDIR\uninstall.exe"
+            
+            ; Registre pour Ajout/Suppression de programmes
+            WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SnackAnarchy" "DisplayName" "SnackAnarchy"
+            WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SnackAnarchy" "UninstallString" "`$INSTDIR\uninstall.exe"
+          SectionEnd
+          
+          Section "Uninstall"
+            Delete "`$INSTDIR\SnackAnarchy.exe"
+            Delete "`$INSTDIR\uninstall.exe"
+            Delete "`$DESKTOP\SnackAnarchy.lnk"
+            Delete "`$SMPROGRAMS\SnackAnarchy\SnackAnarchy.lnk"
+            Delete "`$SMPROGRAMS\SnackAnarchy\Désinstaller.lnk"
+            RMDir "`$SMPROGRAMS\SnackAnarchy"
+            RMDir "`$INSTDIR"
+            DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SnackAnarchy"
+          SectionEnd
+          "@ | Out-File -Encoding UTF8 installer.nsi
+
+      - name: Build Windows installer with NSIS
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: SnackAnarchy-Windows-Installer
+          path: SnackAnarchy-Setup.exe
+
+      - name: Upload Windows executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: SnackAnarchy-Windows-Portable
+          path: dist/SnackAnarchy.exe
+
+  build-macos:
+    name: Build macOS DMG
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build macOS app bundle
+        run: |
+          pyinstaller main.py \
+            --name SnackAnarchy \
+            --windowed \
+            --noconfirm \
+            --add-data "assets:assets" \
+            --add-data "keybindings.json:."
+
+      - name: Create macOS DMG
+        run: |
+          mkdir -p dist/dmg_src
+          cp -R "dist/SnackAnarchy.app" dist/dmg_src/
+          ln -s /Applications dist/dmg_src/Applications
+          hdiutil create -volname "SnackAnarchy" -srcfolder dist/dmg_src -ov -format UDZO dist/SnackAnarchy.dmg
+
+      - name: Upload macOS DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: SnackAnarchy-macOS-DMG
+          path: dist/SnackAnarchy.dmg
+
+      - name: Upload macOS app
+        uses: actions/upload-artifact@v4
+        with:
+          name: SnackAnarchy-macOS-App
+          path: dist/SnackAnarchy.app
+
+  build-linux:
+    name: Build Linux executable
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install system dependencies
         run: |
           sudo apt-get update
-          # Dépendances courantes pour pygame + affichage
           sudo apt-get install -y \
-            libSDL2-2.0-0 libSDL2-mixer-2.0-0 libSDL2-image-2.0-0 \
-            libSDL2-ttf-2.0-0 libasound2-dev libportmidi-dev \
+            libsdl2-2.0-0 libsdl2-mixer-2.0-0 libsdl2-image-2.0-0 \
+            libsdl2-ttf-2.0-0 libasound2-dev libportmidi-dev \
             libavformat-dev libavcodec-dev libswscale-dev
 
       - name: Install Python dependencies
@@ -40,92 +175,24 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
-      
-      # --- Construction de base avec PyInstaller (binaire) ---
-      - name: Build executable with PyInstaller (Linux)
-        if: matrix.os == 'ubuntu-latest'
+
+      - name: Build Linux executable
         run: |
           pyinstaller main.py \
             --name SnackAnarchy \
             --onefile \
             --noconfirm \
-            --add-data "assets:assets"
-      
-      - name: Build executable with PyInstaller (Windows)
-        if: matrix.os == 'windows-latest'
-        run: pyinstaller main.py --name SnackAnarchy --onefile --noconfirm --add-data "assets;assets"
+            --add-data "assets:assets" \
+            --add-data "keybindings.json:."
 
-      # --- Installateur Windows (.exe NSIS) ---
-      - name: Install NSIS (Windows only)
-        if: matrix.os == 'windows-latest'
-        run: |
-          choco install nsis -y
-
-      - name: Create Windows installer script
-        if: matrix.os == 'windows-latest'
-        run: |
-          echo 'OutFile "SnackAnarchy-Setup.exe"' > installer.nsi
-          echo 'InstallDir "$PROGRAMFILES\\SnackAnarchy"' >> installer.nsi
-          echo 'Page directory' >> installer.nsi
-          echo 'Page instfiles' >> installer.nsi
-          echo 'Section "Install"' >> installer.nsi
-          echo '  SetOutPath "$INSTDIR"' >> installer.nsi
-          echo '  File "dist\\SnackAnarchy.exe"' >> installer.nsi
-          echo '  CreateShortCut "$DESKTOP\\SnackAnarchy.lnk" "$INSTDIR\\SnackAnarchy.exe"' >> installer.nsi
-          echo 'SectionEnd' >> installer.nsi
-
-      - name: Build Windows installer
-        if: matrix.os == 'windows-latest'
-        run: makensis installer.nsi
-
-      # --- Image disque macOS (.dmg) ---
-      - name: Build macOS app bundle
-        if: matrix.os == 'macos-latest'
-        run: |
-          # Reconstruire en mode fenêtre pour générer une app
-          pyinstaller main.py \
-            --name SnackAnarchy \
-            --windowed \
-            --noconfirm \
-            --add-data "assets:assets"
-
-      - name: Create macOS DMG
-        if: matrix.os == 'macos-latest'
-        run: |
-          mkdir -p dist/dmg_src
-          cp -R "dist/SnackAnarchy.app" dist/dmg_src/
-          hdiutil create -volname "SnackAnarchy" -srcfolder dist/dmg_src -ov -format UDZO dist/SnackAnarchy.dmg
-
-      # --- Archivage Linux (tar.gz) ---
       - name: Create Linux archive
-        if: matrix.os == 'ubuntu-latest'
         run: |
-          tar -czf SnackAnarchy-linux.tar.gz -C dist SnackAnarchy
-
-      # --- Upload des artefacts ---
-      - name: Upload raw dist artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: snackanarchy-dist-${{ matrix.os }}
-          path: dist/*
-
-      - name: Upload Windows installer
-        if: matrix.os == 'windows-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: snackanarchy-windows-installer
-          path: SnackAnarchy-Setup.exe
-
-      - name: Upload macOS DMG
-        if: matrix.os == 'macos-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: snackanarchy-macos-dmg
-          path: dist/SnackAnarchy.dmg
+          cd dist
+          tar -czvf ../SnackAnarchy-Linux.tar.gz SnackAnarchy
+          cd ..
 
       - name: Upload Linux archive
-        if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: snackanarchy-linux-archive
-          path: SnackAnarchy-linux.tar.gz
+          name: SnackAnarchy-Linux
+          path: SnackAnarchy-Linux.tar.gz
