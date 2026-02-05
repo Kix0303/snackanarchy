@@ -7,6 +7,7 @@ from game.assets_loader import Assets
 from game.inventory import PlayerInventory, FoodStock
 from game.animation import WalkAnimation, AttackAnimation, AnimationManager, FloatingText
 from game.audio import play_sound
+from game.missions import MissionManager
 
 class Player(pygame.sprite.Sprite):
     def __init__(self, id, x, y, color, start_zone="street", username=None):
@@ -87,6 +88,25 @@ class Player(pygame.sprite.Sprite):
         self.last_footstep = 0
         self.footstep_interval = 0.3
         
+        # Statistiques de la partie (pour l'historique)
+        self.clients_served = 0
+        self.tacos_served = 0
+        self.kebabs_served = 0
+        self.attacks_made = 0
+        self.sabotages_done = 0
+        self.missions_completed = 0
+        self.cleaning_done = 0
+        
+        # Système de nettoyage (balai)
+        self.sweep_cooldown = 0
+        self.sweep_cooldown_duration = 15.0  # 15 secondes de cooldown
+        self.is_sweeping = False
+        self.sweep_animation_timer = 0
+        self.sweep_animation_duration = 1.0  # 1 seconde d'animation
+        
+        # Système de missions
+        self.mission_manager = MissionManager(self)
+        
     def move(self, dx, dy):
         if self.active_minigame: return
         if self.attack_animation and not self.attack_animation.completed: return
@@ -123,6 +143,16 @@ class Player(pygame.sprite.Sprite):
         # Cooldown d'attaque
         if self.attack_cooldown > 0:
             self.attack_cooldown -= 1/60  # Approximation pour 60 FPS
+            
+        # Cooldown de balayage
+        if self.sweep_cooldown > 0:
+            self.sweep_cooldown -= 1/60
+            
+        # Animation de balayage
+        if self.is_sweeping:
+            self.sweep_animation_timer -= 1/60
+            if self.sweep_animation_timer <= 0:
+                self.is_sweeping = False
         
         if self.active_minigame:
             if events:
@@ -210,6 +240,10 @@ class Player(pygame.sprite.Sprite):
         if self.attack_animation and not self.attack_animation.completed:
             self.attack_animation.draw_weapon(surface, camera)
         
+        # Dessiner l'animation de balayage
+        if self.is_sweeping:
+            self._draw_sweep_animation(surface, draw_x, draw_y)
+        
         # Indicateur d'arme équipée
         weapon_info = self.get_weapon_info()
         if weapon_info:
@@ -231,6 +265,57 @@ class Player(pygame.sprite.Sprite):
         
         if self.active_minigame:
             self.active_minigame.draw(surface, draw_x - 50, draw_y - 140)
+            
+    def _draw_sweep_animation(self, surface, draw_x, draw_y):
+        """Dessine l'animation de balayage"""
+        import math
+        
+        # Calculer la progression de l'animation (0 à 1)
+        progress = 1 - (self.sweep_animation_timer / self.sweep_animation_duration)
+        
+        # Position du balai
+        center_x = draw_x + self.rect.width // 2
+        center_y = draw_y + self.rect.height
+        
+        # Angle du balai qui oscille (gauche-droite-gauche)
+        sweep_angle = math.sin(progress * math.pi * 3) * 45  # 3 oscillations
+        
+        # Longueur du balai
+        broom_length = 40
+        
+        # Calculer les points du balai
+        angle_rad = math.radians(-90 + sweep_angle)
+        end_x = center_x + int(broom_length * math.cos(angle_rad))
+        end_y = center_y + int(broom_length * math.sin(angle_rad))
+        
+        # Manche du balai
+        pygame.draw.line(surface, (139, 90, 43), (center_x, center_y - 10), (end_x, end_y), 3)
+        
+        # Tête du balai (plus large à l'extrémité)
+        broom_width = 20
+        perp_angle = angle_rad + math.pi / 2
+        broom_points = [
+            (end_x - int(broom_width // 2 * math.cos(perp_angle)),
+             end_y - int(broom_width // 2 * math.sin(perp_angle))),
+            (end_x + int(broom_width // 2 * math.cos(perp_angle)),
+             end_y + int(broom_width // 2 * math.sin(perp_angle))),
+            (end_x + int((broom_width // 2 + 5) * math.cos(perp_angle)) + int(10 * math.cos(angle_rad)),
+             end_y + int((broom_width // 2 + 5) * math.sin(perp_angle)) + int(10 * math.sin(angle_rad))),
+            (end_x - int((broom_width // 2 + 5) * math.cos(perp_angle)) + int(10 * math.cos(angle_rad)),
+             end_y - int((broom_width // 2 + 5) * math.sin(perp_angle)) + int(10 * math.sin(angle_rad))),
+        ]
+        pygame.draw.polygon(surface, (180, 140, 70), broom_points)
+        
+        # Effet de particules de poussière
+        if progress > 0.2:
+            for i in range(3):
+                dust_x = end_x + int((progress * 30 + i * 10) * (1 if self.facing == 'right' else -1))
+                dust_y = end_y + 5 - int(progress * 10)
+                alpha = int(150 * (1 - progress))
+                dust_size = int(3 + progress * 5)
+                dust_surface = pygame.Surface((dust_size * 2, dust_size * 2), pygame.SRCALPHA)
+                pygame.draw.circle(dust_surface, (200, 180, 150, alpha), (dust_size, dust_size), dust_size)
+                surface.blit(dust_surface, (dust_x - dust_size, dust_y - dust_size))
             
     def check_collision_with(self, other):
         """Pixel-perfect collision check"""
@@ -380,6 +465,27 @@ class Player(pygame.sprite.Sprite):
             return self.current_zone == 'kebab'
         else:
             return self.current_zone == 'tacos'
+            
+    # === MÉTHODES DE NETTOYAGE ===
+    
+    def can_sweep(self):
+        """Vérifie si le joueur peut balayer"""
+        return self.sweep_cooldown <= 0 and not self.is_sweeping
+        
+    def start_sweep(self):
+        """Commence l'animation de balayage"""
+        if not self.can_sweep():
+            return False
+            
+        self.is_sweeping = True
+        self.sweep_animation_timer = self.sweep_animation_duration
+        self.sweep_cooldown = self.sweep_cooldown_duration
+        play_sound('sweep', f'player{self.id}')
+        return True
+        
+    def get_sweep_cooldown(self):
+        """Retourne le temps restant avant de pouvoir balayer"""
+        return max(0, self.sweep_cooldown)
             
     def can_steal_spit(self, other_player):
         """Vérifie si le joueur peut voler la broche de l'autre"""

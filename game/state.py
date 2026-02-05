@@ -10,6 +10,7 @@ from game.inventory import WeaponSpawner
 from game.sabotage import SabotageManager, SABOTAGES
 from game.animation import AnimationManager
 from game.audio import AudioManager, play_sound
+from game.history import GameHistory
 from config import *
 
 class GameState:
@@ -92,6 +93,8 @@ class GameState:
                 play_sound('victory', 'ui')
             else:
                 play_sound('game_over', 'ui')
+            # Enregistrer la partie dans l'historique
+            GameHistory.get().record_game(self)
             return
         
         # Mise à jour des armes
@@ -127,6 +130,31 @@ class GameState:
                             (player.rect.centerx, player.rect.top - 30),
                             GREEN
                         )
+                        
+                        # Mise à jour des statistiques
+                        player.clients_served += 1
+                        if "Tacos" in dish_name:
+                            player.tacos_served += 1
+                            player.mission_manager.update('serve_tacos')
+                        elif "Kebab" in dish_name:
+                            player.kebabs_served += 1
+                            player.mission_manager.update('serve_kebabs')
+                        
+                        # Mise à jour des missions
+                        player.mission_manager.update('serve_clients')
+                        player.mission_manager.update('serve_success')
+                        player.mission_manager.update('earn_money', player.money)
+                        player.mission_manager.update('reach_reputation', player.reputation)
+                        
+                        # Réclamer automatiquement les récompenses des missions
+                        claimed, money, rep = player.mission_manager.claim_completed_missions()
+                        if claimed > 0:
+                            play_sound('mission_complete', 'ui')
+                            player.animation_manager.add_floating_text(
+                                f"Mission! +{money}€",
+                                (player.rect.centerx, player.rect.top - 50),
+                                YELLOW
+                            )
                     else:
                         # Pas de stock = échec mais pas de pénalité de rep
                         play_sound('stock_empty', f'player{player.id}')
@@ -143,6 +171,8 @@ class GameState:
                         (player.rect.centerx, player.rect.top - 30),
                         RED
                     )
+                    # Réinitialiser le streak pour les missions
+                    player.mission_manager.update('serve_fail')
                     # Ne pas supprimer le client, il reste en attente
                     player.active_minigame = None
                     player.current_client = None
@@ -162,6 +192,8 @@ class GameState:
                 self.handle_attack(player_idx)
             elif action_type == "sabotage":
                 self.handle_sabotage_menu(player_idx)
+            elif action_type == "sweep":
+                self.handle_sweep(player_idx)
 
         if time.time() - self.last_spawn_time > self.spawn_interval:
             self.spawn_client()
@@ -281,6 +313,9 @@ class GameState:
             weapon = player.attack((closest_client.rect.centerx, closest_client.rect.centery))
             
             if weapon:
+                # Statistiques
+                player.attacks_made += 1
+                player.mission_manager.update('attack')
                 # Infliger les dégâts
                 closest_client.take_damage(weapon.damage, weapon.weapon_type)
                 
@@ -340,6 +375,9 @@ class GameState:
                 (player.rect.centerx, player.rect.top - 30),
                 ORANGE
             )
+            # Statistiques et missions
+            player.sabotages_done += 1
+            player.mission_manager.update('sabotage')
         else:
             player.animation_manager.add_floating_text(
                 message,
@@ -354,6 +392,61 @@ class GameState:
         # Cette méthode est appelée quand le joueur veut voir les sabotages disponibles
         # L'affichage réel se fait dans le renderer
         pass
+        
+    def handle_sweep(self, player_idx):
+        """Gère l'action de balayage pour gagner de la réputation"""
+        player = self.players[player_idx]
+        
+        # Vérifier que le joueur est dans SON propre restaurant
+        player_restaurant = getattr(player, 'owns_restaurant', 'tacos' if player_idx == 0 else 'kebab')
+        if player.current_zone != player_restaurant:
+            play_sound('stock_empty', f'player{player.id}')
+            player.animation_manager.add_floating_text(
+                "Pas ton resto!",
+                (player.rect.centerx, player.rect.top - 30),
+                RED
+            )
+            return False
+            
+        if not player.can_sweep():
+            cooldown = player.get_sweep_cooldown()
+            if cooldown > 0:
+                play_sound('stock_empty', f'player{player.id}')
+                player.animation_manager.add_floating_text(
+                    f"Cooldown: {int(cooldown)}s",
+                    (player.rect.centerx, player.rect.top - 30),
+                    ORANGE
+                )
+            return False
+            
+        # Démarrer le balayage
+        if player.start_sweep():
+            # Gain de réputation
+            rep_gain = 3
+            player.modify_reputation(rep_gain)
+            player.cleaning_done += 1
+            
+            # Mise à jour des missions
+            player.mission_manager.update('clean')
+            player.mission_manager.update('reach_reputation', player.reputation)
+            
+            # Animation
+            player.animation_manager.add_floating_text(
+                f"Nettoyage! +{rep_gain}%",
+                (player.rect.centerx, player.rect.top - 30),
+                GREEN
+            )
+            
+            # Réclamer automatiquement les récompenses des missions
+            claimed, money, rep = player.mission_manager.claim_completed_missions()
+            if claimed > 0:
+                play_sound('mission_complete', 'ui')
+                player.add_money(money)
+                player.modify_reputation(rep)
+                
+            return True
+            
+        return False
         
     def try_steal_spit(self, player_idx):
         """Tente de voler la broche de l'adversaire"""

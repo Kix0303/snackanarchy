@@ -134,6 +134,18 @@ class Client(pygame.sprite.Sprite):
         self.rect.centerx += int(dx / dist * step)
         self.rect.centery += int(dy / dist * step)
 
+    def _clamp_to_street_zone(self, zone):
+        """Maintient le client dans les limites walkables de la rue (évite de sortir en bas)."""
+        # Rue : trottoir/route = lignes 3 à 7 (pixels 3*TILE_SIZE à 8*TILE_SIZE)
+        min_x = 0
+        max_x = zone.width * TILE_SIZE
+        min_y = 3 * TILE_SIZE  # première ligne walkable (trottoir)
+        max_y = zone.height * TILE_SIZE  # bas de la map
+        self.rect.left = max(min_x, self.rect.left)
+        self.rect.right = min(max_x, self.rect.right)
+        self.rect.top = max(min_y, self.rect.top)
+        self.rect.bottom = min(max_y, self.rect.bottom)
+
     def update(self, world_map=None, game_state=None):
         """Mise à jour du client avec logique de déplacement"""
         
@@ -363,6 +375,12 @@ class Client(pygame.sprite.Sprite):
                 self.state = "waiting"
                 if self.spawn_time is None:
                     self.spawn_time = time.time()
+
+        # Clamp en rue pour ne jamais sortir de la map (surtout en bas)
+        if self.zone == "street" and world_map:
+            zone = world_map.get_zone("street")
+            if zone:
+                self._clamp_to_street_zone(zone)
 
         # 5) Gestion de la patience uniquement lorsqu'il est en file
         if self.state == "waiting" and self.spawn_time is not None:
