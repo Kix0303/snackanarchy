@@ -72,6 +72,16 @@ class GameState:
         
         # Timer warning
         self.timer_warning_played = False
+
+        # Les 3 premiers clients arrivent en même temps dans chaque restaurant (équité)
+        self._spawn_initial_clients()
+        
+    def _spawn_initial_clients(self):
+        """Spawn 3 clients pour le tacos et 3 pour le kebab au tout début de la partie."""
+        for _ in range(3):
+            self.spawn_client(force_target_restaurant="tacos")
+        for _ in range(3):
+            self.spawn_client(force_target_restaurant="kebab")
         
     def update(self, events, input_action):
         if self.game_over:
@@ -261,9 +271,12 @@ class GameState:
             return
         
         for client in self.clients:
-            if client.zone != player.current_zone:
+            # Le client doit être dans le restaurant dont ce joueur est propriétaire (évite qu'un vendeur serve dans le resto de l'autre)
+            if client.zone != player_restaurant:
                 continue
-                
+            # Ne pas permettre de servir un client déjà pris en charge par un autre joueur
+            if any(p.current_client == client for p in self.players if p != player):
+                continue
             if not client.is_targetable():
                 continue
                 
@@ -282,7 +295,7 @@ class GameState:
                     
             if collision:
                 player.current_client = client
-                player.active_minigame = MiniGame(client.dish.name)
+                player.active_minigame = MiniGame(client.dish.name, player_idx)
                 play_sound('serve', f'player{player.id}')
                 return
                 
@@ -557,26 +570,23 @@ class GameState:
                 if client.state in ("walking_to_restaurant", "waiting_outside"):
                     client.state = "waiting_outside"
 
-    def spawn_client(self):
+    def spawn_client(self, force_target_restaurant=None):
         """Fait apparaître un client qui va vers un restaurant.
-        La probabilité de spawn dépend de la réputation de chaque restaurant.
-        Plus la réputation est haute, plus de clients viennent.
+        Si force_target_restaurant est donné, le client va vers ce restaurant.
+        Sinon, la probabilité dépend de la réputation de chaque restaurant.
         """
-        # Calculer les probabilités basées sur la réputation
-        tacos_rep = self.players[0].reputation
-        kebab_rep = self.players[1].reputation
-        
-        # Au début (réputation égale à 50%), c'est 50/50
-        # Ensuite, la probabilité est proportionnelle à la réputation
-        total_rep = tacos_rep + kebab_rep
-        
-        if total_rep <= 0:
-            # Fallback si les deux sont à 0
-            target_restaurant = random.choice(["tacos", "kebab"])
+        if force_target_restaurant is not None:
+            target_restaurant = force_target_restaurant
         else:
-            # Probabilité basée sur la réputation
-            tacos_probability = tacos_rep / total_rep
-            target_restaurant = "tacos" if random.random() < tacos_probability else "kebab"
+            # Calculer les probabilités basées sur la réputation
+            tacos_rep = self.players[0].reputation
+            kebab_rep = self.players[1].reputation
+            total_rep = tacos_rep + kebab_rep
+            if total_rep <= 0:
+                target_restaurant = random.choice(["tacos", "kebab"])
+            else:
+                tacos_probability = tacos_rep / total_rep
+                target_restaurant = "tacos" if random.random() < tacos_probability else "kebab"
 
         street_zone = self.world_map.get_zone("street")
         if not street_zone:
