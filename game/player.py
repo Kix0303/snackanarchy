@@ -226,7 +226,9 @@ class Player(pygame.sprite.Sprite):
                 self.rect.centery = target_y * TILE_SIZE + TILE_SIZE // 2
                 play_sound('door', f'player{self.id}')
         
-    def draw(self, surface, camera):
+    def draw(self, surface, camera, viewport_owner_id=None):
+        """Dessine le joueur. viewport_owner_id: id du joueur dont c'est la vue (1 ou 2).
+        La box de service (minigame) n'est affichée que sur la vue de ce joueur."""
         draw_x = self.rect.x - camera.x
         draw_y = self.rect.y - camera.y + self.bob_offset
         
@@ -263,7 +265,9 @@ class Player(pygame.sprite.Sprite):
                                    (icon_x + 4 + i * 4, icon_y + 2),
                                    (icon_x + 4 + i * 4, icon_y + 12), 2)
         
-        if self.active_minigame:
+        # N'afficher la box de service (minigame) que sur la vue du joueur qui sert.
+        # En split screen (viewport_owner_id défini) elle est dessinée au-dessus du HUD par le renderer.
+        if self.active_minigame and viewport_owner_id is None:
             self.active_minigame.draw(surface, draw_x - 50, draw_y - 140)
             
     def _draw_sweep_animation(self, surface, draw_x, draw_y):
