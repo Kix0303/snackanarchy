@@ -102,6 +102,14 @@ def poison_food(executor, target):
     return "Nourriture empoisonnée! -10 réputation, stock réduit"
 
 
+def hire_thief(executor, target):
+    """Paye un voleur qui vole 100€ dans la caisse de l'adversaire. Coût 100€, -5 réputation pour l'utilisateur."""
+    stolen = min(100, target.money)
+    target.money = max(0, target.money - 100)
+    executor.modify_reputation(-5)
+    return f"Voleur envoyé! {stolen}€ volés, -5% réputation"
+
+
 # List of Sabotages
 SABOTAGES = {
     "break_fryer": Sabotage("Casse Friteuse", 50, "material", break_fryer, cooldown=60),
@@ -110,6 +118,7 @@ SABOTAGES = {
     "inspection": Sabotage("Contrôle Hygiène", 80, "inspection", call_inspection, cooldown=90),
     "steal_spit": Sabotage("Voler la Broche", 60, "theft", steal_spit, cooldown=45, requires_proximity=True),
     "poison_food": Sabotage("Empoisonner Stock", 70, "sabotage", poison_food, cooldown=60),
+    "thief": Sabotage("Payer un Voleur", 100, "theft", hire_thief, cooldown=60),
 }
 
 

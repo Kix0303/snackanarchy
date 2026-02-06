@@ -268,27 +268,37 @@ class MissionManager:
         # Générer les missions initiales
         self._generate_initial_missions()
     
+    def _get_restaurant(self):
+        """Restaurant du joueur (tacos ou kebab) pour filtrer les missions de service."""
+        return getattr(self.player, 'owns_restaurant', getattr(self.player, 'home_zone', 'tacos'))
+
+    def _mission_ok_for_player(self, mission_id):
+        """True si la mission est réalisable par le joueur (ex: pas 'servir kebabs' pour joueur tacos)."""
+        restaurant = self._get_restaurant()
+        if mission_id.startswith('serve_tacos_'):
+            return restaurant == 'tacos'
+        if mission_id.startswith('serve_kebabs_'):
+            return restaurant == 'kebab'
+        return True
+
     def _generate_initial_missions(self):
-        """Génère les missions de départ"""
-        # Sélectionner des missions variées
-        available = list(MISSION_TEMPLATES.keys())
-        
-        # Toujours commencer avec une mission de service facile
+        """Génère les missions de départ (uniquement réalisables pour ce joueur)."""
+        restaurant = self._get_restaurant()
+        # Mission de service selon le restaurant (tacos ou kebab, pas les deux)
+        serve_mission = 'serve_tacos_5' if restaurant == 'tacos' else 'serve_kebabs_5'
+
         easy_missions = ['serve_clients_3', 'earn_money_100']
-        medium_missions = ['serve_tacos_5', 'serve_kebabs_5', 'reach_reputation_60', 'clean_restaurant_1']
-        
+        medium_missions = [serve_mission, 'reach_reputation_60', 'clean_restaurant_1']
+
         selected = []
-        
-        # Une mission facile
         easy = random.choice(easy_missions)
         selected.append(easy)
-        
-        # Deux missions moyennes
+
         random.shuffle(medium_missions)
         for m in medium_missions:
             if m not in selected and len(selected) < self.MAX_ACTIVE_MISSIONS:
                 selected.append(m)
-        
+
         for mission_id in selected:
             self._add_mission(mission_id)
     
@@ -387,20 +397,24 @@ class MissionManager:
         return claimed_count, total_money, total_reputation
     
     def _generate_new_mission(self):
-        """Génère une nouvelle mission pour remplacer une complétée"""
+        """Génère une nouvelle mission pour remplacer une complétée (réalisable pour ce joueur)."""
         if len(self.active_missions) >= self.MAX_ACTIVE_MISSIONS:
             return
-        
-        # Trouver les missions non encore utilisées
+
         used_ids = {m.id for m in self.active_missions}
         used_ids.update({m.id for m in self.completed_missions})
-        
-        available = [mid for mid in MISSION_TEMPLATES.keys() if mid not in used_ids]
-        
+
+        available = [
+            mid for mid in MISSION_TEMPLATES.keys()
+            if mid not in used_ids and self._mission_ok_for_player(mid)
+        ]
+
         if not available:
-            # Si toutes les missions ont été faites, en reprendre aléatoirement
-            available = list(MISSION_TEMPLATES.keys())
-        
+            available = [
+                mid for mid in MISSION_TEMPLATES.keys()
+                if self._mission_ok_for_player(mid)
+            ]
+
         if available:
             new_mission_id = random.choice(available)
             self._add_mission(new_mission_id)
