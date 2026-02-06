@@ -27,6 +27,26 @@ Le but ? **Gagner le plus d'argent** avant la fin du temps imparti en servant de
 
 ---
 
+## Captures d'écran
+
+### Menu principal
+
+![Menu principal](demo/demo1.png)
+
+### Configuration des joueurs
+
+![Configuration](demo/demo2.png)
+
+### Gameplay - Les deux restaurants
+
+![Gameplay restaurants](demo/demo3.png)
+
+### Gameplay - La rue et les clients
+
+![Gameplay rue](demo/demo4.png)
+
+---
+
 ## Installation
 
 ### Téléchargement des releases
