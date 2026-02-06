@@ -125,7 +125,7 @@ class SplitScreenRenderer:
         self.screen.blit(zone_text, (x + 120, y + 5))
         
         # Money
-        money_text = self.font.render(f"${player.money}", True, (255, 215, 0))
+        money_text = self.font.render(f"{player.money} €", True, (255, 215, 0))
         self.screen.blit(money_text, (x + 10, y + 25))
         
         # Reputation bar
@@ -205,10 +205,6 @@ class SplitScreenRenderer:
         elif action == 'attack':
             pygame.draw.line(surface, color, (x + 3, y + size - 3), (x + size - 3, y + 3), 2)
             pygame.draw.line(surface, color, (x + size - 6, y + 6), (x + size - 3, y + 9), 2)
-        elif action == 'sabotage':
-            pygame.draw.circle(surface, color, (cx, cy + 2), size // 3, 2)
-            pygame.draw.line(surface, color, (cx - 5, cy - 2), (cx - 6, y + 2), 2)
-            pygame.draw.line(surface, color, (cx + 5, cy - 2), (cx + 6, y + 2), 2)
         elif action == 'sweep':
             pygame.draw.line(surface, color, (cx, y + 2), (cx, y + size - 6), 2)
             pygame.draw.line(surface, color, (x + 3, y + size - 3), (x + size - 3, y + size - 3), 3)
@@ -283,7 +279,7 @@ class SplitScreenRenderer:
         y_move = SCREEN_HEIGHT - 44
         y_actions = SCREEN_HEIGHT - 22
         move_actions = ['up', 'down', 'left', 'right']
-        other_actions = ['interact', 'attack', 'sabotage', 'sweep', 'inventory']
+        other_actions = ['interact', 'attack', 'sweep', 'inventory', 'carte']
         arrow_keys = (pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT)
         
         for i, (player_key, label) in enumerate([
@@ -358,7 +354,7 @@ class SplitScreenRenderer:
         self.screen.blit(win_render, win_rect)
         
         # Scores
-        score_text = self.font.render(f"{p1_name}: ${p1.money}  |  {p2_name}: ${p2.money}", True, WHITE)
+        score_text = self.font.render(f"{p1_name}: {p1.money} €  |  {p2_name}: {p2.money} €", True, WHITE)
         score_rect = score_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 60))
         self.screen.blit(score_text, score_rect)
         

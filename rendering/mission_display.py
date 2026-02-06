@@ -50,10 +50,10 @@ class MissionDisplay:
                 pygame.draw.circle(surface, color, (cx + offset, y + 5), 3)
                 pygame.draw.line(surface, color, (cx + offset, y + 8), (cx + offset, y + size - 2), 2)
         elif icon_type == "money":
-            # Symbole euro/dollar
+            # Symbole euro
             pygame.draw.circle(surface, color, (cx, cy), size // 2 - 2, 1)
             small_font = pygame.font.SysFont("Arial", 12, bold=True)
-            dollar = small_font.render("$", True, color)
+            dollar = small_font.render("€", True, color)
             surface.blit(dollar, dollar.get_rect(center=(cx, cy)))
         elif icon_type == "star":
             # Étoile simple
