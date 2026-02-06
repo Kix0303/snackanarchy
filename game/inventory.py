@@ -48,22 +48,28 @@ class FoodStock:
         return False
         
     def use_recipe(self, recipe_ingredients):
-        """Utilise tous les ingrédients d'une recette. Retourne True si tous disponibles."""
-        # Vérifier d'abord que tout est disponible
-        for ing_name in recipe_ingredients:
-            if ing_name in self.ingredients:
-                if self.ingredients[ing_name]['quantity'] < 1:
-                    return False, ing_name
-                    
+        """Utilise les ingrédients d'une recette.
+        recipe_ingredients: dict { nom_ingrédient: quantité } ou liste (1 par élément).
+        Retourne (True, None) si OK, (False, nom_ingrédient_manquant) sinon."""
+        # Normaliser en dict { ing_name: quantité }
+        if isinstance(recipe_ingredients, dict):
+            need = list(recipe_ingredients.items())
+        else:
+            from collections import Counter
+            need = list(Counter(recipe_ingredients).items())
+        # Vérifier que tout est disponible
+        for ing_name, amount in need:
+            if ing_name in self.ingredients and self.ingredients[ing_name]['quantity'] < amount:
+                return False, ing_name
         # Utiliser les ingrédients
-        for ing_name in recipe_ingredients:
+        for ing_name, amount in need:
             if ing_name in self.ingredients:
-                self.ingredients[ing_name]['quantity'] -= 1
-                
+                self.ingredients[ing_name]['quantity'] -= amount
         return True, None
         
-    def restock(self, ingredient_name, amount=None):
-        """Réapprovisionne un ingrédient (coûte de l'argent)"""
+    def restock(self, ingredient_name, amount=None, dry_run=False):
+        """Réapprovisionne un ingrédient (coûte de l'argent).
+        Si dry_run=True, calcule et retourne (amount, cost) sans modifier le stock."""
         if ingredient_name not in self.ingredients:
             return 0, 0
             
@@ -76,14 +82,16 @@ class FoodStock:
             return 0, 0
             
         cost = int(amount * ing['price'])
-        ing['quantity'] += amount
+        if not dry_run:
+            ing['quantity'] += amount
         return amount, cost
         
-    def restock_all(self):
-        """Réapprovisionne tout (coûte de l'argent)"""
+    def restock_all(self, dry_run=False):
+        """Réapprovisionne tout (coûte de l'argent).
+        Si dry_run=True, calcule le coût total sans modifier le stock."""
         total_cost = 0
         for ing_name in self.ingredients:
-            _, cost = self.restock(ing_name)
+            _, cost = self.restock(ing_name, dry_run=dry_run)
             total_cost += cost
         return total_cost
         
@@ -311,8 +319,17 @@ class WeaponSpawner:
             weapon.draw(surface, camera)
 
 
-# Recettes pour vérification du stock
+# Recettes : dict { nom_ingrédient: quantité } — chaque plat consomme un nombre d'ingrédients différent
 RECIPES = {
-    'Tacos XXL': ['galette', 'viande', 'sauce_fromagere', 'frites', 'sel'],
-    'Kebab': ['pain_pita', 'viande_kebab', 'salade', 'tomates', 'oignons'],
+    # Tacos (galette, viande, sauce_fromagere, frites, sel)
+    'Tacos S': {'galette': 1, 'viande': 1, 'sauce_fromagere': 1, 'frites': 1},  # 4
+    'Tacos M': {'galette': 1, 'viande': 1, 'sauce_fromagere': 1, 'frites': 1, 'sel': 1},  # 5
+    'Tacos L': {'galette': 2, 'viande': 1, 'sauce_fromagere': 1, 'frites': 2, 'sel': 1},  # 7
+    'Tacos XXL': {'galette': 2, 'viande': 2, 'sauce_fromagere': 2, 'frites': 2, 'sel': 1},  # 9
+    'Burritos': {'galette': 2, 'viande': 1, 'sauce_fromagere': 1, 'frites': 1, 'sel': 1},  # 6
+    'Nachos': {'galette': 1, 'viande': 1, 'sauce_fromagere': 2, 'frites': 2, 'sel': 1},  # 7
+    # Kebab (pain_pita, viande_kebab, salade, tomates, oignons)
+    'Kebab': {'pain_pita': 1, 'viande_kebab': 1, 'salade': 1, 'tomates': 1, 'oignons': 1},  # 5
+    'Kebab Wrap': {'pain_pita': 2, 'viande_kebab': 1, 'salade': 1, 'tomates': 1, 'oignons': 1},  # 6
+    'Assiettes': {'pain_pita': 1, 'viande_kebab': 2, 'salade': 2, 'tomates': 1, 'oignons': 1},  # 7
 }
