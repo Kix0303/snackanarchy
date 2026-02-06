@@ -1,22 +1,24 @@
 {
   "player1": {
     "up": 122,
-    "down": 113,
-    "left": 115,
+    "down": 115,
+    "left": 113,
     "right": 100,
     "interact": 101,
-    "attack": 109,
-    "sabotage": 114,
-    "inventory": 105
+    "attack": 97,
+    "sweep": 102,
+    "inventory": 114,
+    "carte": 116
   },
   "player2": {
     "up": 1073741906,
     "down": 1073741905,
     "left": 1073741904,
     "right": 1073741903,
-    "interact": 13,
-    "attack": 108,
-    "sabotage": 8,
-    "inventory": 118
+    "interact": 112,
+    "attack": 109,
+    "sweep": 108,
+    "inventory": 105,
+    "carte": 111
   }
 }

@@ -14,29 +14,31 @@ def get_user_config_path(filename):
 class KeyBindings:
     """Classe pour gérer les touches configurables"""
     
-    # Touches par défaut
+    # Touches par défaut (AZERTY) — joueur 1 à gauche, joueur 2 à droite pour éviter que les mains se chevauchent
     DEFAULT_BINDINGS = {
         'player1': {
-            'up': pygame.K_w,
+            # Main gauche : ZQSD + E, A, F, R, T
+            'up': pygame.K_z,
             'down': pygame.K_s,
-            'left': pygame.K_a,
+            'left': pygame.K_q,
             'right': pygame.K_d,
             'interact': pygame.K_e,
-            'attack': pygame.K_q,
-            'sabotage': pygame.K_r,
+            'attack': pygame.K_a,
             'sweep': pygame.K_f,
-            'inventory': pygame.K_i,
+            'inventory': pygame.K_r,
+            'carte': pygame.K_t,
         },
         'player2': {
+            # Main droite : flèches + P, M, L, I, O
             'up': pygame.K_UP,
             'down': pygame.K_DOWN,
             'left': pygame.K_LEFT,
             'right': pygame.K_RIGHT,
-            'interact': pygame.K_RETURN,
-            'attack': pygame.K_RCTRL,
-            'sabotage': pygame.K_BACKSPACE,
-            'sweep': pygame.K_RSHIFT,
-            'inventory': pygame.K_BACKSLASH,
+            'interact': pygame.K_p,
+            'attack': pygame.K_m,
+            'sweep': pygame.K_l,
+            'inventory': pygame.K_i,
+            'carte': pygame.K_o,
         }
     }
     
@@ -75,9 +77,9 @@ class KeyBindings:
         'right': 'Droite',
         'interact': 'Servir',
         'attack': 'Attaque',
-        'sabotage': 'Sabotage',
         'sweep': 'Balai',
         'inventory': 'Inventaire',
+        'carte': 'Carte',
     }
     
     def __init__(self):
@@ -231,11 +233,6 @@ class InputHandler:
                             else:
                                 play_sound('stock_empty', 'player1')
                                 
-                    if event.key == kb.get_key('player1', 'sabotage'):
-                        if current_time - self.last_action_time[0] > self.action_cooldown:
-                            self.last_action_time[0] = current_time
-                            return (0, "sabotage")
-                            
                     if event.key == kb.get_key('player1', 'sweep'):
                         if current_time - self.last_action_time[0] > self.action_cooldown:
                             self.last_action_time[0] = current_time
@@ -256,11 +253,6 @@ class InputHandler:
                             else:
                                 play_sound('stock_empty', 'player2')
                                 
-                    if event.key == kb.get_key('player2', 'sabotage'):
-                        if current_time - self.last_action_time[1] > self.action_cooldown:
-                            self.last_action_time[1] = current_time
-                            return (1, "sabotage")
-                            
                     if event.key == kb.get_key('player2', 'sweep'):
                         if current_time - self.last_action_time[1] > self.action_cooldown:
                             self.last_action_time[1] = current_time
