@@ -5,7 +5,7 @@ from config import *
 from game.equipment import Fryer, Spit, Menu, Register, Toilets
 from game.assets_loader import Assets
 from game.inventory import PlayerInventory, FoodStock
-from game.animation import WalkAnimation, AttackAnimation, AnimationManager, FloatingText
+from game.animation import WalkAnimation, AttackAnimation, AnimationManager, FloatingText, ServeAnimation
 from game.audio import play_sound
 from game.missions import MissionManager
 
@@ -63,6 +63,7 @@ class Player(pygame.sprite.Sprite):
         
         self.current_client = None
         self.active_minigame = None
+        self.serve_animation = None  # Animation aller cuisine -> retour client
         self.active_sabotages = []
         
         # Nouveau: Inventaire et stock
@@ -109,6 +110,7 @@ class Player(pygame.sprite.Sprite):
         
     def move(self, dx, dy):
         if self.active_minigame: return
+        if self.serve_animation and not self.serve_animation.completed: return
         if self.attack_animation and not self.attack_animation.completed: return
         
         self.vx = dx * self.speed
@@ -139,6 +141,21 @@ class Player(pygame.sprite.Sprite):
             result = self.attack_animation.update()
             if self.attack_animation.completed:
                 self.attack_animation = None
+
+        # Mettre à jour l'animation de service (aller cuisine -> retour client)
+        if self.serve_animation:
+            self.serve_animation.update()
+            pos = self.serve_animation.current_pos
+            self.rect.x = int(pos[0])
+            self.rect.y = int(pos[1])
+            # Orientation : regarder vers la cuisine ou le client selon la phase
+            if not self.serve_animation.completed:
+                progress = (time.time() - self.serve_animation.start_time) / self.serve_animation.duration
+                if progress < 0.5:
+                    self.facing = 'right' if self.serve_animation.kitchen_pos[0] >= self.rect.centerx else 'left'
+                else:
+                    self.facing = 'right' if self.serve_animation.client_pos[0] >= self.rect.centerx else 'left'
+            return
                 
         # Cooldown d'attaque
         if self.attack_cooldown > 0:
@@ -414,11 +431,17 @@ class Player(pygame.sprite.Sprite):
             return True, None  # Pas de recette = pas de vérification
             
         recipe = RECIPES[dish_name]
-        for ingredient in recipe:
-            if ingredient in self.food_stock.ingredients:
-                if self.food_stock.ingredients[ingredient]['quantity'] < 1:
-                    return False, ingredient
-                    
+        # Recette en dict { ingrédient: quantité } ou liste (1 par élément)
+        if isinstance(recipe, dict):
+            for ingredient, amount in recipe.items():
+                if ingredient in self.food_stock.ingredients:
+                    if self.food_stock.ingredients[ingredient]['quantity'] < amount:
+                        return False, ingredient
+        else:
+            for ingredient in recipe:
+                if ingredient in self.food_stock.ingredients:
+                    if self.food_stock.ingredients[ingredient]['quantity'] < 1:
+                        return False, ingredient
         return True, None
         
     def use_ingredients_for_dish(self, dish_name):
@@ -442,17 +465,19 @@ class Player(pygame.sprite.Sprite):
         return success
         
     def restock(self, ingredient_name=None):
-        """Réapprovisionne le stock"""
+        """Réapprovisionne le stock (déduit l'argent seulement si le joueur peut payer)"""
         if ingredient_name:
-            amount, cost = self.food_stock.restock(ingredient_name)
+            amount, cost = self.food_stock.restock(ingredient_name, dry_run=True)
             if cost > 0 and self.money >= cost:
                 self.money -= cost
+                self.food_stock.restock(ingredient_name, amount=amount)
                 play_sound('restock', f'player{self.id}')
                 return amount, cost
         else:
-            cost = self.food_stock.restock_all()
+            cost = self.food_stock.restock_all(dry_run=True)
             if cost > 0 and self.money >= cost:
                 self.money -= cost
+                self.food_stock.restock_all()
                 play_sound('restock', f'player{self.id}')
                 return True, cost
         return 0, 0

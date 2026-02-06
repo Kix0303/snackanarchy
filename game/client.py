@@ -3,7 +3,7 @@ import random
 import time
 import math
 from config import *
-from game.dishes import create_tacos_xxl, create_kebab
+from game.dishes import create_dish_for_restaurant
 from game.assets_loader import Assets
 from game.animation import DeathAnimation, FleeAnimation
 from game.audio import play_sound
@@ -53,13 +53,8 @@ class Client(pygame.sprite.Sprite):
         # Vitesse de déplacement (plus lent qu'un joueur)
         self.speed = 2
         
-        # Plat demandé dépend de la zone cible (restaurant)
-        if self.target_zone == "tacos":
-            self.dish = create_tacos_xxl()
-        elif self.target_zone == "kebab":
-            self.dish = create_kebab()
-        else:
-            self.dish = create_tacos_xxl() if random.random() < 0.5 else create_kebab()
+        # Plat demandé : une instance fraîche par client, variée selon le restaurant
+        self.dish = create_dish_for_restaurant(self.target_zone or "street")
             
         self.absurd_request = self._generate_absurd_request()
         
@@ -88,6 +83,7 @@ class Client(pygame.sprite.Sprite):
         # Position de file à l'extérieur (en tuiles)
         self.outside_tile_x = None
         self.outside_tile_y = None
+        self.is_first_in_queue = False  # True uniquement pour le premier de la file (bulle plat)
         
         # On commence à mesurer la patience uniquement une fois en file intérieure
         self.spawn_time = None if self.state != "waiting" else time.time()
@@ -225,9 +221,11 @@ class Client(pygame.sprite.Sprite):
                         available_restaurants.append(restaurant)
                 
                 if available_restaurants:
-                    # Choisir le restaurant en fonction de la réputation
-                    tacos_rep = game_state.players[0].reputation
-                    kebab_rep = game_state.players[1].reputation
+                    # Choisir le restaurant en fonction de la réputation du propriétaire
+                    tacos_owner = game_state._get_restaurant_owner("tacos")
+                    kebab_owner = game_state._get_restaurant_owner("kebab")
+                    tacos_rep = tacos_owner.reputation if tacos_owner else 50
+                    kebab_rep = kebab_owner.reputation if kebab_owner else 50
                     
                     if len(available_restaurants) == 1:
                         chosen_restaurant = available_restaurants[0]
@@ -244,11 +242,8 @@ class Client(pygame.sprite.Sprite):
                     self.target_zone = chosen_restaurant
                     self.is_wanderer = False
                     self.state = "walking_to_restaurant"
-                    # Mettre à jour le plat selon le restaurant
-                    if chosen_restaurant == "tacos":
-                        self.dish = create_tacos_xxl()
-                    else:
-                        self.dish = create_kebab()
+                    # Nouveau plat dédié à ce client (toujours une instance fraîche)
+                    self.dish = create_dish_for_restaurant(chosen_restaurant)
                     if hasattr(game_state, '_recompute_queues'):
                         game_state._recompute_queues()
                     return
@@ -461,8 +456,8 @@ class Client(pygame.sprite.Sprite):
         
         surface.blit(self.image, (draw_x, draw_y))
         
-        # Order bubble - seulement si en attente dans le restaurant
-        if self.state in ['waiting', 'walking_to_queue', 'angry']:
+        # Order bubble - uniquement pour le premier client de la file
+        if self.state in ['waiting', 'walking_to_queue', 'angry'] and self.is_first_in_queue:
             font = pygame.font.SysFont(None, 24)
             order_text = font.render(self.dish.name, True, BLACK)
             bubble_rect = pygame.Rect(draw_x - 10, draw_y - 35, order_text.get_width() + 16, 28)
